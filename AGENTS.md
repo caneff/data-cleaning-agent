@@ -8,7 +8,7 @@
 ## Conventions
 
 - Python: PEP8 style, Ruff linting, NumPy-style docstrings.
-- Use pytest for testing; prefer pandas/NumPy for data work.
+- Use pytest for testing; prefer pandas/NumPy for data work, plotly for charts, and dash for dashboards.
 - Use `uv run` for all Python execution (see the user `uv` skill under `~/.cursor/skills/uv/` when available).
 - Prefer doing `import {packagename}` instead of `from {packagename} import {functionname}`
 
