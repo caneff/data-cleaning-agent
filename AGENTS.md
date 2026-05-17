@@ -13,7 +13,7 @@
 
 ## Agent Instructions
 
-- **Specs and design docs:** Never commit design specs, implementation plans, or brainstorming write-ups. Keep them only under gitignored paths (e.g. `docs/superpowers/`). If a spec must be shared, paste or attach it; do not commit specs.
+- **Specs and design docs:** Never commit design specs, implementation plans, or brainstorming write-ups. Write them only under the user Cursor folder outside this repo (`~/.cursor/superpowers/<repo-slug>/specs/` and `.../plans/`). If a spec must be shared, paste or attach it; do not commit specs.
 - Run `uv run pytest -q` after changes and share results.
 - Confirm before installing new dependencies.
 - Never write secrets; always use environment variables.
