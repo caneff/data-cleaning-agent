@@ -8,8 +8,9 @@ import pandas as pd
 
 from data_cleaning_agent import cleaners
 from data_cleaning_agent.cleaners import normalize_column_label
-from data_cleaning_agent.cleaning_plan import DEFAULT_ROW_ID_COL, CleaningPlan
+from data_cleaning_agent.cleaning_plan import CleaningPlan
 from data_cleaning_agent.pipeline_steps import PipelineStep
+from data_cleaning_agent.source_row_identity import DEFAULT_SOURCE_ROW_IDENTITY_LABEL
 
 
 @dataclass
@@ -62,7 +63,7 @@ def _restore_row_id_column_name(
     work: pd.DataFrame,
     row_id_col: str,
 ) -> pd.DataFrame:
-    """Keep the synthetic row id label unchanged after ``normalize_column_names``."""
+    """Keep Source Row Identity label unchanged after ``normalize_column_names``."""
     normalized = normalize_column_label(row_id_col)
     if normalized in work.columns and normalized != row_id_col:
         return work.rename(columns={normalized: row_id_col})
@@ -73,7 +74,7 @@ def run_cleaning_pipeline(
     df: pd.DataFrame,
     plan: CleaningPlan,
     *,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> tuple[pd.DataFrame, PipelineTrace]:
     """Run fixed-order cleaning steps, honoring ``plan`` skips and parameters."""
     trace = PipelineTrace()

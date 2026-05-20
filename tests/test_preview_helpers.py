@@ -4,13 +4,14 @@ import pandas as pd
 import pytest
 
 from preview_helpers import (
-    AGENT_ROW_ID,
     diff_cell_mask,
     preview_aligned_frames,
     reorder_cleaned_for_export,
     round_numeric_preview,
     style_preview_pair,
 )
+
+_ROW_ID = "__preview_row_id__"
 
 
 @pytest.mark.unit
@@ -70,7 +71,7 @@ def test_style_preview_pair_highlights_differing_cells():
 @pytest.mark.unit
 def test_aligned_first_k_cleaned_ids_only_changed_rows():
     """Includes only differing rows; order tie-breaks on cleaned id order when counts tie."""
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1, 2], "a": ["x", "y", "z"], "b": [1, 2, 3]})
     cleaned = pd.DataFrame({
         rid: [2, 0],
@@ -90,7 +91,7 @@ def test_aligned_first_k_cleaned_ids_only_changed_rows():
 
 @pytest.mark.unit
 def test_aligned_empty_preview_when_no_cells_changed():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1], "a": [1, 2]})
     cleaned = pd.DataFrame({rid: [0, 1], "a": [1, 2]})
     result = preview_aligned_frames(raw, cleaned, rid, k=5)
@@ -101,7 +102,7 @@ def test_aligned_empty_preview_when_no_cells_changed():
 
 @pytest.mark.unit
 def test_fallback_skips_unchanged_leading_rows():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1, 2], "a": [1, 2, 3]})
     cleaned = pd.DataFrame({"a": [1, 20, 30]})
     result = preview_aligned_frames(raw, cleaned, rid, k=2)
@@ -113,7 +114,7 @@ def test_fallback_skips_unchanged_leading_rows():
 @pytest.mark.unit
 def test_aligned_only_surviving_ids_when_cleaned_drops_rows():
     """Preview is only overlapping ids; tie on one column each uses cleaned id order."""
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1, 2, 3], "v": [10, 20, 30, 40]})
     cleaned = pd.DataFrame({rid: [2, 0], "v": [300, 100]})
     result = preview_aligned_frames(raw, cleaned, rid, k=10)
@@ -129,7 +130,7 @@ def test_aligned_only_surviving_ids_when_cleaned_drops_rows():
 @pytest.mark.unit
 def test_unaligned_when_row_id_missing_from_cleaned():
     """If ``row_id`` is absent from cleaned, use fallback and ``aligned`` is False."""
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1], "b": [3, 4], "a": [1, 2]})
     cleaned = pd.DataFrame({"a": [1, 2], "b": [30, 40]})
     result = preview_aligned_frames(raw, cleaned, rid, k=2)
@@ -142,7 +143,7 @@ def test_unaligned_when_row_id_missing_from_cleaned():
 
 @pytest.mark.unit
 def test_unaligned_when_row_id_missing_from_input_frame():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({"a": [1, 2]})
     cleaned = pd.DataFrame({rid: [0], "a": [1]})
     result = preview_aligned_frames(raw, cleaned, rid, k=5)
@@ -152,7 +153,7 @@ def test_unaligned_when_row_id_missing_from_input_frame():
 @pytest.mark.unit
 def test_preview_pads_to_k_with_matching_rows_when_mismatches_sparse():
     """When fewer than k rows differ, pad with matching intersection rows."""
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: list(range(10)), "v": list(range(10))})
     cleaned = raw.copy()
     cleaned.loc[0, "v"] = 999
@@ -165,7 +166,7 @@ def test_preview_pads_to_k_with_matching_rows_when_mismatches_sparse():
 @pytest.mark.unit
 def test_top_k_prefers_more_column_mismatches():
     """k=2 picks rows with 3 then 2 column diffs before the row with 1 diff."""
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({
         rid: [0, 1, 2],
         "a": [1, 1, 1],
@@ -190,7 +191,7 @@ def test_top_k_prefers_more_column_mismatches():
 
 @pytest.mark.unit
 def test_distinct_ids_tiebreak_cleaned_order_when_same_mismatch_count():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1, 2], "x": [1, 2, 3]})
     cleaned = pd.DataFrame({rid: [1, 1, 2, 0], "x": [20, 20, 30, 10]})
     result = preview_aligned_frames(raw, cleaned, rid, k=2)
@@ -202,7 +203,7 @@ def test_distinct_ids_tiebreak_cleaned_order_when_same_mismatch_count():
 
 @pytest.mark.unit
 def test_preview_excludes_row_id_when_aligned():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({"z": [1], rid: [0]})
     cleaned = pd.DataFrame({rid: [0], "z": [10]})
     result = preview_aligned_frames(raw, cleaned, rid, k=1)
@@ -214,7 +215,7 @@ def test_preview_excludes_row_id_when_aligned():
 @pytest.mark.unit
 def test_preview_column_order_follows_upload_csv_order():
     """Common columns appear in raw column order, not sorted alphabetically."""
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({
         "m": [1, 2],
         rid: [0, 1],
@@ -235,7 +236,7 @@ def test_preview_column_order_follows_upload_csv_order():
 
 @pytest.mark.unit
 def test_aligned_surfaces_rows_only_in_after():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1], "v": [1, 2]})
     cleaned = pd.DataFrame({rid: [0, 1, 2], "v": [1, 2, 99]})
     result = preview_aligned_frames(raw, cleaned, rid, k=5)
@@ -248,7 +249,7 @@ def test_aligned_surfaces_rows_only_in_after():
 
 @pytest.mark.unit
 def test_aligned_surfaces_rows_only_in_before():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0, 1, 2], "v": [1, 2, 3]})
     cleaned = pd.DataFrame({rid: [0, 1], "v": [10, 20]})
     result = preview_aligned_frames(raw, cleaned, rid, k=5)
@@ -262,7 +263,7 @@ def test_aligned_surfaces_rows_only_in_before():
 @pytest.mark.unit
 def test_preview_city_shows_strings_when_cleaned_uses_category_dtype():
     """Regression: dtype/null representation differences must not hide city values in preview."""
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.read_csv("data/sample_data.csv").reset_index(drop=True)
     raw[rid] = raw.index.astype("int64")
     cleaned = raw.copy()
@@ -278,7 +279,7 @@ def test_preview_city_shows_strings_when_cleaned_uses_category_dtype():
 
 @pytest.mark.unit
 def test_reorder_cleaned_for_export_upload_order_then_new_columns():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({
         "m": [1, 2],
         rid: [0, 1],
@@ -299,7 +300,7 @@ def test_reorder_cleaned_for_export_upload_order_then_new_columns():
 
 @pytest.mark.unit
 def test_reorder_cleaned_for_export_empty_after_drop_row_id():
-    rid = AGENT_ROW_ID
+    rid = _ROW_ID
     raw = pd.DataFrame({rid: [0]})
     cleaned = pd.DataFrame({rid: [0]})
     out = reorder_cleaned_for_export(raw, cleaned, rid)

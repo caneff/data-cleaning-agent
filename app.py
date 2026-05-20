@@ -220,7 +220,12 @@ if uploaded_file:
             )
             if outcome_facts_show_any_change(facts):
                 with st.expander("What Actually Changed", expanded=False):
-                    st.markdown(format_outcome_summary_markdown(facts))
+                    st.markdown(
+                        format_outcome_summary_markdown(
+                            facts,
+                            row_id_col=row_id_col,
+                        )
+                    )
             st.subheader("Preview")
             st.caption(
                 "Mismatching rows first (most changed columns), then matching "

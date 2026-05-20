@@ -11,12 +11,9 @@ from typing import Any
 import pandas as pd
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 
-from data_cleaning_agent.cleaning_plan import (
-    DEFAULT_ROW_ID_COL,
-    CleaningPlan,
-    default_plan_from_summary,
-)
+from data_cleaning_agent.cleaning_plan import CleaningPlan, default_plan_from_summary
 from data_cleaning_agent.pipeline_steps import PIPELINE_STEP_ORDER
+from data_cleaning_agent.source_row_identity import DEFAULT_SOURCE_ROW_IDENTITY_LABEL
 from data_cleaning_agent.utils import (
     DataFrameSummary,
     format_dataframe_summary,
@@ -36,6 +33,10 @@ _STR_OUTPUT_PARSER = StrOutputParser()
 _JSON_OUTPUT_PARSER = JsonOutputParser()
 
 
+def _user_data_frame(source_df: pd.DataFrame, row_id_col: str) -> pd.DataFrame:
+    return source_df.drop(columns=[row_id_col], errors="ignore")
+
+
 def _coerce_column_names(plan: CleaningPlan, field: str) -> set[str]:
     value = getattr(plan, field)
     return set(value) if value else set()
@@ -45,7 +46,7 @@ def validate_cleaning_plan(
     plan: CleaningPlan,
     summary: DataFrameSummary,
     *,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> None:
     """Check a parsed plan; raise on hard failures, log warnings for likely gaps."""
     date_like = {name for name, col in summary.columns.items() if col.looks_date_like}
@@ -95,7 +96,7 @@ def render_plan_prompt(
     user_instructions: str,
     dataset_summary: str,
     example_plan: CleaningPlan,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> str:
     """Render the plan-generation prompt with runtime values."""
     example_plan_json = json.dumps(asdict(example_plan), indent=2)
@@ -115,10 +116,11 @@ def generate_cleaning_plan(
     source_df: pd.DataFrame,
     user_instructions: str | None = None,
     *,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> CleaningPlan:
     """Call the LLM to produce a validated :class:`CleaningPlan` from JSON output."""
-    summary = get_dataframe_summary(source_df)
+    user_df = _user_data_frame(source_df, row_id_col)
+    summary = get_dataframe_summary(user_df)
     example = default_plan_from_summary(summary, row_id_col=row_id_col)
     ui = user_instructions or "Follow the basic cleaning steps."
     dataset_summary = format_dataframe_summary(summary)
@@ -140,7 +142,7 @@ def render_fix_plan_prompt(
     dataset_summary: str,
     plan_snippet: str,
     error: str,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> str:
     """Render the plan-fix prompt with runtime values."""
     return FIX_PLAN_PROMPT_TEMPLATE.format(
@@ -160,10 +162,11 @@ def fix_cleaning_plan(
     broken_plan: dict | None,
     error: str,
     user_instructions: str | None = None,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> CleaningPlan:
     """Ask the LLM to correct a plan that failed validation or pipeline execution."""
-    summary = get_dataframe_summary(source_df)
+    user_df = _user_data_frame(source_df, row_id_col)
+    summary = get_dataframe_summary(user_df)
     ui = user_instructions or "Follow the basic cleaning steps."
     dataset_summary = format_dataframe_summary(summary)
     plan_snippet = json.dumps(broken_plan or {}, indent=2)

@@ -4,24 +4,22 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from typing import Any
 
 import pandas as pd
 import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
-from data_cleaning_agent.cleaning_plan import (
-    DEFAULT_ROW_ID_COL,
-    CleaningPlan,
-    default_plan_from_summary,
-)
+import data_cleaning_agent.source_row_identity as source_row_identity
+from data_cleaning_agent.cleaning_plan import CleaningPlan, default_plan_from_summary
 from data_cleaning_agent.data_cleaning_agent import (
     LightweightDataCleaningAgent,
     make_lightweight_data_cleaning_agent,
 )
 from data_cleaning_agent.plan_generation import FIX_PLAN_PROMPT_TEMPLATE
 
-_ROW_ID = DEFAULT_ROW_ID_COL
+_ROW_ID = source_row_identity.DEFAULT_SOURCE_ROW_IDENTITY_LABEL
 
 
 def _df_with_row_id(mixed_df: pd.DataFrame) -> pd.DataFrame:
@@ -113,6 +111,33 @@ def test_invoke_agent_keeps_identity_internal_for_cleaning_run(
 
 
 @pytest.mark.unit
+def test_invoke_agent_generates_plan_with_active_source_row_identity_label(
+    mixed_df, summary, monkeypatch
+) -> None:
+    payload = _valid_plan_payload(summary)
+    seen: dict[str, Any] = {}
+
+    def fake_generate(model, source_df, user_instructions=None, **kwargs):
+        seen["row_id_col"] = kwargs["row_id_col"]
+        seen["source_df"] = source_df
+        return CleaningPlan(**payload)
+
+    monkeypatch.setattr(
+        "data_cleaning_agent.data_cleaning_agent.plan_generation.generate_cleaning_plan",
+        fake_generate,
+    )
+
+    agent = LightweightDataCleaningAgent(model=object())
+    agent.invoke_agent(_df_with_row_id(mixed_df), max_retries=0)
+
+    run = agent.get_cleaning_run()
+    assert run is not None
+    assert seen["row_id_col"] == run.policy.identity_label
+    assert run.policy.identity_label != _ROW_ID
+    assert run.policy.identity_label in seen["source_df"].columns
+
+
+@pytest.mark.unit
 def test_generate_and_execute_stored_cleaning_plan(
     mixed_df, summary, monkeypatch
 ) -> None:
@@ -137,6 +162,33 @@ def test_generate_and_execute_stored_cleaning_plan(
     out = agent.execute_stored_cleaning()
     assert out.get("data_cleaner_error") is None
     assert agent.get_data_cleaned() is not None
+
+
+@pytest.mark.unit
+def test_generate_cleaning_plan_uses_active_source_row_identity_label(
+    mixed_df, summary, monkeypatch
+) -> None:
+    payload = _valid_plan_payload(summary)
+    seen: dict[str, Any] = {}
+
+    def fake_generate(model, source_df, user_instructions=None, **kwargs):
+        seen["row_id_col"] = kwargs["row_id_col"]
+        seen["source_df"] = source_df
+        return CleaningPlan(**payload)
+
+    monkeypatch.setattr(
+        "data_cleaning_agent.data_cleaning_agent.plan_generation.generate_cleaning_plan",
+        fake_generate,
+    )
+
+    agent = LightweightDataCleaningAgent(model=object())
+    agent.generate_cleaning_plan(_df_with_row_id(mixed_df))
+
+    run = agent.get_cleaning_run()
+    assert run is not None
+    assert seen["row_id_col"] == run.policy.identity_label
+    assert run.policy.identity_label != _ROW_ID
+    assert run.policy.identity_label in seen["source_df"].columns
 
 
 @pytest.mark.unit
@@ -185,7 +237,12 @@ def test_graph_retries_fix_on_pipeline_error(mixed_df, summary, monkeypatch) -> 
 
     execute_count = {"n": 0}
 
-    def fake_run_cleaning_pipeline(df, plan, *, row_id_col=DEFAULT_ROW_ID_COL):
+    def fake_run_cleaning_pipeline(
+        df,
+        plan,
+        *,
+        row_id_col=source_row_identity.DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
+    ):
         execute_count["n"] += 1
         if execute_count["n"] == 1:
             msg = "simulated pipeline failure"

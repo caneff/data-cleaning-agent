@@ -6,9 +6,9 @@ import dataclasses
 import json
 
 import data_cleaning_agent.pipeline_steps as pipeline_steps
+import data_cleaning_agent.source_row_identity as source_row_identity
 import data_cleaning_agent.utils as utils
 
-DEFAULT_ROW_ID_COL = "__agent_row_id__"
 DEFAULT_DROP_HIGH_MISSING_THRESHOLD = 0.4
 
 
@@ -16,7 +16,7 @@ DEFAULT_DROP_HIGH_MISSING_THRESHOLD = 0.4
 class CleaningPlan:
     """Validated cleaning plan for the hybrid pipeline.
 
-    ``protected_columns`` is the user-data keep-list for destructive steps
+    ``protected_columns`` is the Protected Columns keep-list for destructive steps
     (drops, strip, impute skips). Step-specific fields only cover parameters
     that vary per run (threshold, dtype coercion targets, impute column lists).
     """
@@ -50,9 +50,9 @@ def _format_column_list(columns: tuple[str, ...]) -> str:
 def format_plan_summary_markdown(
     plan: CleaningPlan,
     *,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = source_row_identity.DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> str:
-    """Human-readable plan summary for Streamlit (omits row id from protected list)."""
+    """Human-readable plan summary for Streamlit."""
     skips = set(plan.skip_steps)
     step_lines: list[str] = []
     for step in pipeline_steps.PIPELINE_STEP_ORDER:
@@ -71,14 +71,14 @@ def format_plan_summary_markdown(
     if protected:
         lines.extend([
             "",
-            "#### Protected columns",
+            "#### Protected Columns",
             ", ".join(f"`{name}`" for name in protected),
         ])
     lines.extend([
         "",
         "#### High-missing drop threshold",
         f"Drop columns with **≥ {plan.drop_high_missing_threshold:.0%}** missing "
-        "(except protected columns).",
+        "(except Protected Columns).",
         "",
         "#### Coerce dtypes",
         f"- **Dates:** {_format_column_list(plan.coerce_datetime_columns)}",
@@ -95,7 +95,7 @@ def format_plan_summary_markdown(
 def plan_display_json(
     plan: CleaningPlan,
     *,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = source_row_identity.DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> str:
     """JSON snapshot for tests or debugging."""
     payload = dataclasses.asdict(plan)
@@ -106,7 +106,7 @@ def plan_display_json(
 def default_plan_from_summary(
     summary: utils.DataFrameSummary,
     *,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
+    row_id_col: str = source_row_identity.DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> CleaningPlan:
     """Build an example plan from summary flags for the plan-generation prompt.
 
