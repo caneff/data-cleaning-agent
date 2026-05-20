@@ -114,7 +114,9 @@ def normalize_column_label(name: Hashable) -> str:
 
 def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """Strip and lowercase column names; map non-word runs to a single underscore (Unicode ``\\w``)."""
-    return df.copy().rename(columns=_normalize_single_column_name, copy=False)
+    out = df.copy()
+    out.columns = [_normalize_single_column_name(column) for column in out.columns]
+    return out
 
 
 def missing_share(
@@ -154,9 +156,9 @@ def missing_share(
     str_only = strip_strings(str_only_raw)
 
     if str_only.shape[1] > 0:
-        str_bad = str_only.isin(_PLACEHOLDER_TOKENS) | (
-            treat_blank_as_missing & str_only.eq("")
-        )
+        str_bad = str_only.isin(_PLACEHOLDER_TOKENS)
+        if treat_blank_as_missing:
+            str_bad = str_bad | str_only.isin(("",))
         mask = mask | str_bad.reindex(columns=work.columns, fill_value=False)
 
     return cast(pd.Series, mask.mean(axis=0))
@@ -306,10 +308,11 @@ def coerce_datetime_columns(
         Copy with coerced datetime columns where applicable.
     """
     out = df.copy()
-    present = out.columns.intersection(columns)
-    if present.empty:
+    present = [column for column in columns if column in out.columns]
+    if not present:
         return out
-    out[present] = out[present].apply(_to_datetime_mixed, axis=0)
+    present_cols = cast(list[str], present)
+    out[present_cols] = out[present_cols].apply(_to_datetime_mixed, axis=0)
     return out
 
 
@@ -336,10 +339,11 @@ def coerce_numeric_columns(
         Copy with coerced numeric columns where applicable.
     """
     out = df.copy()
-    present = out.columns.intersection(columns)
-    if present.empty:
+    present = [column for column in columns if column in out.columns]
+    if not present:
         return out
-    out[present] = out[present].apply(_coerce_numeric_series, axis=0)
+    present_cols = cast(list[str], present)
+    out[present_cols] = out[present_cols].apply(_coerce_numeric_series, axis=0)
     return out
 
 
@@ -366,10 +370,11 @@ def coerce_bool_columns(
         Copy with coerced boolean columns where applicable.
     """
     out = df.copy()
-    present = out.columns.intersection(columns)
-    if present.empty:
+    present = [column for column in columns if column in out.columns]
+    if not present:
         return out
-    out[present] = out[present].apply(_series_to_nullable_bool, axis=0)
+    present_cols = cast(list[str], present)
+    out[present_cols] = out[present_cols].apply(_series_to_nullable_bool, axis=0)
     return out
 
 
@@ -443,7 +448,7 @@ def impute_numeric_median_or_mean(
     out = s.copy()
     if len(out) == 0 or not out.notna().any():
         return out
-    skew = float(out.skew(skipna=True, numeric_only=True))
+    skew = float(cast(float, out.skew(skipna=True, numeric_only=True)))
 
     use_median = np.isfinite(skew) and abs(skew) > skew_threshold
     stat = (
@@ -451,7 +456,7 @@ def impute_numeric_median_or_mean(
         if use_median
         else out.mean(skipna=True, numeric_only=True)
     )
-    stat_f = float(stat)
+    stat_f = float(cast(float, stat))
 
     if not np.isfinite(stat_f):
         return out
@@ -506,7 +511,7 @@ def drop_duplicate_rows(
     """
     if subset is None:
         return df.drop_duplicates()
-    present = df.columns.intersection(subset)
-    if present.empty:
+    present = [column for column in subset if column in df.columns]
+    if not present:
         return df.copy()
-    return df.drop_duplicates(subset=list(present))
+    return df.drop_duplicates(subset=present)

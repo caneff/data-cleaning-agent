@@ -395,8 +395,9 @@ def make_lightweight_data_cleaning_agent(
 
         logger.info("Executing cleaning plan")
 
-        if state.get("cleaning_plan_error"):
-            return {"data_cleaner_error": state["cleaning_plan_error"]}
+        cleaning_plan_error = state.get("cleaning_plan_error")
+        if cleaning_plan_error:
+            return {"data_cleaner_error": cleaning_plan_error}
 
         plan_dict = state.get("cleaning_plan")
 

@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -44,7 +44,11 @@ def first_column_as_series(df: pd.DataFrame, name: str) -> pd.Series:
     if isinstance(sel, pd.DataFrame):
         if sel.shape[1] == 0:
             return pd.Series(dtype=object)
-        return sel.iloc[:, 0]
+        return pd.Series(
+            sel.to_numpy()[:, 0],
+            index=sel.index,
+            name=sel.columns[0],
+        )
     return sel
 
 
@@ -172,10 +176,10 @@ def _sample_values(series: pd.Series, n: int = 3) -> list[Any]:
 
 def _numeric_stats(series: pd.Series) -> NumericStats:
     """Compute summary stats for a numeric column. Skew is coerced to 0.0 when undefined."""
-    skew = float(series.skew())
+    skew = float(cast(float, series.skew()))
     if pd.isna(skew):
         skew = 0.0
-    std = float(series.std())
+    std = float(cast(float, series.std()))
     if pd.isna(std):
         std = 0.0
     return NumericStats(
@@ -291,7 +295,7 @@ def get_dataframe_summary(df: pd.DataFrame) -> DataFrameSummary:
     for name in df.columns:
         col = df[name]
         if isinstance(col, pd.DataFrame):
-            col = col.iloc[:, 0]
+            col = pd.Series(col.to_numpy()[:, 0], index=col.index, name=name)
         columns[name] = _summarize_column(name, col, n_rows)
     return DataFrameSummary(n_rows=n_rows, n_cols=len(df.columns), columns=columns)
 
