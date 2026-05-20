@@ -9,9 +9,6 @@ import numpy as np
 import pandas as pd
 from datacompy.core import Compare
 
-# Must match data_cleaning_agent.utils.APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
-AGENT_ROW_ID = "__agent_row_id__"
-
 
 @dataclass(frozen=True)
 class AlignedPreview:

@@ -6,7 +6,7 @@ from data_cleaning_agent.cleaning_pipeline import run_cleaning_pipeline
 from data_cleaning_agent.cleaning_plan import CleaningPlan
 from data_cleaning_agent.pipeline_steps import PipelineStep
 
-ROW_ID = "__agent_row_id__"
+ROW_ID = "__pipeline_row_id__"
 
 
 @pytest.mark.unit

@@ -230,11 +230,13 @@ class LightweightDataCleaningAgent:
 
         """
 
+        cleaning_run = source_row_identity.start_cleaning_run(source_df)
+        row_id_col = str(cleaning_run.policy.identity_label)
         plan = plan_generation.generate_cleaning_plan(
             self.model,
-            source_df,
+            cleaning_run.source_frame,
             user_instructions,
-            row_id_col=cleaning_plan.DEFAULT_ROW_ID_COL,
+            row_id_col=row_id_col,
         )
         self._cleaning_run = source_row_identity.start_cleaning_run(
             source_df,
@@ -371,13 +373,15 @@ def make_lightweight_data_cleaning_agent(
         logger.info("Creating cleaning plan")
 
         df = pd.DataFrame.from_dict(state["source_df"])
+        cleaning_run = source_row_identity.start_cleaning_run(df)
+        row_id_col = str(cleaning_run.policy.identity_label)
 
         try:
             plan = plan_generation.generate_cleaning_plan(
                 model,
-                df,
+                cleaning_run.source_frame,
                 state.get("user_instructions"),
-                row_id_col=cleaning_plan.DEFAULT_ROW_ID_COL,
+                row_id_col=row_id_col,
             )
 
         except Exception as exc:
@@ -387,6 +391,7 @@ def make_lightweight_data_cleaning_agent(
 
         return {
             "cleaning_plan": asdict(plan),
+            "cleaning_run": cleaning_run,
             "cleaning_plan_error": None,
         }
 
@@ -443,6 +448,10 @@ def make_lightweight_data_cleaning_agent(
         logger.info("Fixing cleaning plan")
 
         df = pd.DataFrame.from_dict(state["source_df"])
+        cleaning_run = state.get("cleaning_run")
+        if cleaning_run is None:
+            cleaning_run = source_row_identity.start_cleaning_run(df)
+        row_id_col = str(cleaning_run.policy.identity_label)
 
         error = state.get("data_cleaner_error") or state.get("cleaning_plan_error")
 
@@ -456,7 +465,7 @@ def make_lightweight_data_cleaning_agent(
                 broken_plan=state.get("cleaning_plan"),
                 error=error,
                 user_instructions=state.get("user_instructions"),
-                row_id_col=cleaning_plan.DEFAULT_ROW_ID_COL,
+                row_id_col=row_id_col,
             )
 
         except Exception as exc:

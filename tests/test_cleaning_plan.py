@@ -7,10 +7,12 @@ from data_cleaning_agent.cleaning_plan import (
     plan_display_json,
 )
 
+_ROW_ID = "__plan_summary_row_id__"
+
 
 @pytest.mark.unit
 def test_default_plan_seeds_coerce_columns_from_summary(mixed_df, summary) -> None:
-    plan = default_plan_from_summary(summary, row_id_col="__agent_row_id__")
+    plan = default_plan_from_summary(summary, row_id_col=_ROW_ID)
     assert "signup_date" in plan.coerce_datetime_columns
     assert "income_str" in plan.coerce_numeric_columns
     assert "is_active" in plan.coerce_bool_columns
@@ -18,7 +20,7 @@ def test_default_plan_seeds_coerce_columns_from_summary(mixed_df, summary) -> No
 
 @pytest.mark.unit
 def test_default_plan_has_no_protected_columns_by_default(mixed_df, summary) -> None:
-    plan = default_plan_from_summary(summary, row_id_col="__agent_row_id__")
+    plan = default_plan_from_summary(summary, row_id_col=_ROW_ID)
     assert plan.protected_columns == []
 
 
@@ -33,7 +35,7 @@ def test_format_plan_summary_markdown_is_readable() -> None:
         impute_numeric_columns=("age",),
     )
     text = format_plan_summary_markdown(plan)
-    assert "__agent_row_id__" not in text
+    assert _ROW_ID not in text
     assert "`country`" in text
     assert "~~impute~~" in text
     assert "30%" in text or "0.3" in text
@@ -48,9 +50,9 @@ def test_format_plan_summary_omits_protected_section_without_protected_columns(
     mixed_df,
     summary,
 ) -> None:
-    plan = default_plan_from_summary(summary, row_id_col="__agent_row_id__")
+    plan = default_plan_from_summary(summary, row_id_col=_ROW_ID)
     text = format_plan_summary_markdown(plan)
-    assert "#### Protected columns" not in text
+    assert "#### Protected Columns" not in text
 
 
 @pytest.mark.unit
@@ -60,7 +62,7 @@ def test_plan_display_json_includes_user_protected_columns() -> None:
         coerce_numeric_columns=("income_str",),
     )
     text = plan_display_json(plan)
-    assert "__agent_row_id__" not in text
+    assert _ROW_ID not in text
     assert "country" in text
     assert "income_str" in text
 

@@ -7,8 +7,8 @@ An AI-powered data cleaning agent that uses LangChain and LangGraph to produce a
 The agent follows this workflow:
 
 1. **Analyze**: Summarizes your dataset (dtypes, missingness, detection flags).
-2. **Plan**: The LLM returns a validated `CleaningPlan` (step skips, protected columns, coerce/impute lists).
-3. **Execute**: Python runs steps in fixed order via `run_cleaning_pipeline`.
+2. **Plan**: The LLM returns a validated `CleaningPlan` (step skips, Protected Columns, coerce/impute lists).
+3. **Execute**: Python attaches internal Source Row Identity, then runs steps in fixed order via `run_cleaning_pipeline`.
 4. **Retry**: On validation or runtime errors, the LLM corrects the plan (up to 3 attempts).
 
 ## Setup
@@ -118,6 +118,10 @@ agent.invoke_agent(
 )
 ```
 
+Protected Columns are user-data columns named in your instructions that should be
+kept from destructive cleaning steps. Source Row Identity is internal and is
+removed from downloaded or returned data.
+
 **Generate plan only, apply later**
 
 ```python
@@ -134,6 +138,7 @@ result = agent.execute_stored_cleaning()
 │   ├── cleaning_pipeline.py      # Fixed-order pipeline
 │   ├── plan_generation.py        # LLM plan JSON parse/generate/fix
 │   ├── data_cleaning_agent.py    # LangGraph agent
+│   ├── source_row_identity.py    # Internal Source Row Identity policy
 │   ├── prompts/
 │   │   ├── data_cleaning_plan.md
 │   │   └── data_cleaning_plan_fix.md

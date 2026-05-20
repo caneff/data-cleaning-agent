@@ -7,11 +7,9 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 
+from data_cleaning_agent.source_row_identity import DEFAULT_SOURCE_ROW_IDENTITY_LABEL
+
 logger = logging.getLogger(__name__)
-
-
-# Default Source Row Identity label; the policy may choose a collision-free variant.
-APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN = "__agent_row_id__"
 
 
 # int()/tolist() when building row-id sets — use a bound tuple so formatters cannot
@@ -56,7 +54,7 @@ def summarize_cleaning_row_effects(
     df_before: pd.DataFrame,
     df_after: pd.DataFrame,
     *,
-    row_id_col: str = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN,
+    row_id_col: str = DEFAULT_SOURCE_ROW_IDENTITY_LABEL,
 ) -> dict[str, Any]:
     """
     Summarize row removals between two frames (e.g. for outcome summaries).
@@ -67,11 +65,11 @@ def summarize_cleaning_row_effects(
     Parameters
     ----------
     df_before
-        Frame passed into the cleaner (includes synthetic row id when used).
+        Frame passed into the cleaner (includes Source Row Identity when used).
     df_after
         Returned cleaned frame.
     row_id_col
-        Stable row identifier column for alignment.
+        Source Row Identity column for alignment.
 
     Returns
     -------

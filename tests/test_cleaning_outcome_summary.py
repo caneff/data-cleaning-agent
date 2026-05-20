@@ -9,7 +9,8 @@ from data_cleaning_agent.cleaning_outcome_summary import (
     format_outcome_summary_markdown,
     outcome_facts_show_any_change,
 )
-from data_cleaning_agent.utils import APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+
+_ROW_ID = "__test_row_id__"
 
 
 @pytest.mark.unit
@@ -61,7 +62,7 @@ def test_build_facts_survives_duplicate_column_label_on_shared_name():
 
 @pytest.mark.unit
 def test_format_redacts_internal_row_id_column_name_in_lists():
-    rid = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+    rid = _ROW_ID
     facts = {
         "rows": {"n_before": 2, "n_after": 2},
         "columns": {"dropped": [rid, "x"], "added": [], "dtype_changed": []},
@@ -69,14 +70,29 @@ def test_format_redacts_internal_row_id_column_name_in_lists():
             {"column": rid, "missing_before": 0, "missing_after": 1, "delta": 1}
         ],
     }
-    text = format_outcome_summary_markdown(facts)
+    text = format_outcome_summary_markdown(facts, row_id_col=rid)
+    assert rid not in text
+    assert "Source Row Identity" in text
+
+
+@pytest.mark.unit
+def test_format_redacts_active_row_identity_label_in_lists():
+    rid = "__active_row_id__"
+    facts = {
+        "rows": {"n_before": 2, "n_after": 2},
+        "columns": {"dropped": [rid], "added": [], "dtype_changed": []},
+        "null_deltas": [
+            {"column": rid, "missing_before": 0, "missing_after": 1, "delta": 1}
+        ],
+    }
+    text = format_outcome_summary_markdown(facts, row_id_col=rid)
     assert rid not in text
     assert "Source Row Identity" in text
 
 
 @pytest.mark.unit
 def test_rows_section_includes_id_counts_when_row_id_present():
-    rid = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+    rid = _ROW_ID
     df_before = pd.DataFrame({rid: [0, 1, 2], "v": [1, 2, 3]})
     df_after = pd.DataFrame({rid: [0, 1], "v": [1, 2]})
     facts = build_cleaning_outcome_facts(df_before, df_after, row_id_col=rid)
@@ -89,7 +105,7 @@ def test_rows_section_includes_id_counts_when_row_id_present():
 
 @pytest.mark.unit
 def test_value_changes_are_counted_by_source_row_identity():
-    rid = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+    rid = _ROW_ID
     df_before = pd.DataFrame({
         rid: ["0", "1"],
         "name": ["Ada", "Grace"],
@@ -109,7 +125,7 @@ def test_value_changes_are_counted_by_source_row_identity():
 
 @pytest.mark.unit
 def test_outcome_facts_show_any_change_true_when_id_churn_same_row_count():
-    rid = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+    rid = _ROW_ID
     df_before = pd.DataFrame({rid: ["0", "1"], "v": [1, 2]})
     df_after = pd.DataFrame({rid: ["0", "2"], "v": [1, 3]})
     facts = build_cleaning_outcome_facts(df_before, df_after, row_id_col=rid)

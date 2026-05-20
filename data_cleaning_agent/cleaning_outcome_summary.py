@@ -8,14 +8,16 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_dtype_equal
 
+import data_cleaning_agent.source_row_identity as source_row_identity
 import data_cleaning_agent.utils as utils
 
 DEFAULT_NULL_TOP_K = 10
 _ROW_ID_LABEL = "Source Row Identity"
 
 
-def _column_heading(name: str) -> str:
-    if str(name).strip() == utils.APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN:
+def _column_heading(name: str, *, row_id_col: str | None = None) -> str:
+    identity_label = row_id_col or source_row_identity.DEFAULT_SOURCE_ROW_IDENTITY_LABEL
+    if str(name).strip() == identity_label:
         return _ROW_ID_LABEL
     return str(name)
 
@@ -170,7 +172,11 @@ def outcome_facts_show_any_change(facts: dict[str, Any]) -> bool:
     return bool(facts.get("value_changes"))
 
 
-def format_outcome_summary_markdown(facts: dict[str, Any]) -> str:
+def format_outcome_summary_markdown(
+    facts: dict[str, Any],
+    *,
+    row_id_col: str | None = None,
+) -> str:
     """Return markdown for Streamlit."""
     lines: list[str] = []
     rows = facts["rows"]
@@ -191,11 +197,19 @@ def format_outcome_summary_markdown(facts: dict[str, Any]) -> str:
     added = cols["added"]
     lines.append(
         f"- Dropped ({len(dropped)}): "
-        + (", ".join(f"`{_column_heading(c)}`" for c in dropped) if dropped else "—")
+        + (
+            ", ".join(f"`{_column_heading(c, row_id_col=row_id_col)}`" for c in dropped)
+            if dropped
+            else "—"
+        )
     )
     lines.append(
         f"- Added ({len(added)}): "
-        + (", ".join(f"`{_column_heading(c)}`" for c in added) if added else "—")
+        + (
+            ", ".join(f"`{_column_heading(c, row_id_col=row_id_col)}`" for c in added)
+            if added
+            else "—"
+        )
     )
 
     dtype_changed = cols["dtype_changed"]
@@ -204,7 +218,7 @@ def format_outcome_summary_markdown(facts: dict[str, Any]) -> str:
         lines.append("**Dtype Changes**")
         for entry in dtype_changed:
             lines.append(
-                f"- `{_column_heading(entry['name'])}`: "
+                f"- `{_column_heading(entry['name'], row_id_col=row_id_col)}`: "
                 f"`{entry['before_dtype']}` → `{entry['after_dtype']}`"
             )
 
@@ -213,7 +227,7 @@ def format_outcome_summary_markdown(facts: dict[str, Any]) -> str:
         lines.append("**Changed Values**")
         for row in facts["value_changes"]:
             lines.append(
-                f"- `{_column_heading(row['column'])}`: "
+                f"- `{_column_heading(row['column'], row_id_col=row_id_col)}`: "
                 f"{row['changed_values']:,} changed"
             )
 
@@ -222,7 +236,8 @@ def format_outcome_summary_markdown(facts: dict[str, Any]) -> str:
         lines.append("**Missing Value Count Changes (Top by |Δ|)**")
         for row in facts["null_deltas"]:
             lines.append(
-                f"- `{_column_heading(row['column'])}`: {row['missing_before']} → "
+                f"- `{_column_heading(row['column'], row_id_col=row_id_col)}`: "
+                f"{row['missing_before']} → "
                 f"{row['missing_after']} (Δ {row['delta']:+d})"
             )
 

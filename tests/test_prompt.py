@@ -19,6 +19,7 @@ _FIX_PLAN_MD = (
     / "prompts"
     / "data_cleaning_plan_fix.md"
 )
+_ROW_ID = "__prompt_row_id__"
 
 
 @pytest.mark.unit
@@ -40,13 +41,13 @@ def test_plan_prompt_renders_with_only_expected_placeholders() -> None:
         all_datasets_summary="<s>",
         pipeline_step_ids="copy, normalize_names",
         example_plan_json='{"skip_steps": []}',
-        row_id_col="__agent_row_id__",
+        row_id_col=_ROW_ID,
     )
     assert "CleaningPlan" in rendered
     assert "```json" in rendered
     assert "<u>" in rendered
     assert "<s>" in rendered
-    assert "__agent_row_id__" not in rendered
+    assert _ROW_ID not in rendered
     assert "copy, normalize_names" in rendered
 
 
@@ -59,9 +60,9 @@ def test_fix_plan_prompt_formats_with_expected_placeholders() -> None:
         pipeline_step_ids="normalize_names, impute",
         plan_snippet='{"skip_steps": []}',
         error="ValueError: unknown skip_steps",
-        row_id_col="__agent_row_id__",
+        row_id_col=_ROW_ID,
     )
     assert "CleaningPlan" in rendered
     assert "```json" in rendered
     assert "unknown skip_steps" in rendered
-    assert "__agent_row_id__" not in rendered
+    assert _ROW_ID not in rendered

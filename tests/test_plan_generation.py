@@ -16,7 +16,7 @@ import data_cleaning_agent.cleaning_plan as cleaning_plan
 import data_cleaning_agent.pipeline_steps as pipeline_steps
 import data_cleaning_agent.plan_generation as plan_generation
 
-_ROW_ID_COL = "__agent_row_id__"
+_ROW_ID_COL = "__plan_row_id__"
 _JSON_FENCE_RE = re.compile(r"```json\s*\n.*?\n```", re.DOTALL)
 _JSON_PARSER = JsonOutputParser()
 
@@ -152,3 +152,33 @@ def test_generate_cleaning_plan_uses_mock_llm(mixed_df, summary) -> None:
     assert "country" in plan.protected_columns
     assert _ROW_ID_COL not in plan.protected_columns
     assert "signup_date" in set(plan.coerce_datetime_columns)
+
+
+@pytest.mark.unit
+def test_generate_cleaning_plan_hides_active_source_row_identity_from_prompt(
+    mixed_df, summary
+) -> None:
+    row_id_col = "__plan_row_id___1"
+    source_df = mixed_df.copy()
+    source_df.insert(0, row_id_col, [str(i) for i in range(len(source_df))])
+    payload = {
+        **asdict(cleaning_plan.default_plan_from_summary(summary)),
+        "protected_columns": ["country"],
+    }
+    prompts: list[str] = []
+
+    def fake_response(prompt: object) -> AIMessage:
+        prompts.append(str(prompt))
+        return AIMessage(content=json.dumps(payload))
+
+    fake_model = RunnableLambda(fake_response)
+
+    plan_generation.generate_cleaning_plan(
+        fake_model,
+        source_df,
+        user_instructions="protect country",
+        row_id_col=row_id_col,
+    )
+
+    assert prompts
+    assert row_id_col not in prompts[0]

@@ -3,15 +3,14 @@
 import pandas as pd
 import pytest
 
-from data_cleaning_agent.utils import (
-    APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN,
-    summarize_cleaning_row_effects,
-)
+from data_cleaning_agent.utils import summarize_cleaning_row_effects
+
+_ROW_ID = "__test_row_id__"
 
 
 @pytest.mark.unit
 def test_summarize_row_effects_counts_removed_and_all_null_subset():
-    rid = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+    rid = _ROW_ID
     df_in = pd.DataFrame({
         rid: [0, 1, 2, 3],
         "a": [1.0, None, None, 2.0],
@@ -44,7 +43,7 @@ def test_summarize_row_effects_without_row_id_column():
 
 @pytest.mark.unit
 def test_summarize_row_effects_counts_added_ids():
-    rid = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+    rid = _ROW_ID
     df_in = pd.DataFrame({rid: ["0", "1"], "v": [1, 2]})
     df_out = pd.DataFrame({rid: ["0", "1", "2"], "v": [1, 2, 3]})
     out = summarize_cleaning_row_effects(df_in, df_out, row_id_col=rid)
