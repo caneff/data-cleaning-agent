@@ -48,10 +48,6 @@ def validate_cleaning_plan(
     row_id_col: str = DEFAULT_ROW_ID_COL,
 ) -> None:
     """Check a parsed plan; raise on hard failures, log warnings for likely gaps."""
-    if row_id_col not in plan.protected_columns:
-        msg = f"protected_columns must include row id column {row_id_col!r}"
-        raise ValueError(msg)
-
     date_like = {name for name, col in summary.columns.items() if col.looks_date_like}
     missing_dt = sorted(
         date_like - _coerce_column_names(plan, "coerce_datetime_columns")

@@ -34,7 +34,7 @@ def _valid_plan_payload(summary) -> dict:
     example = default_plan_from_summary(summary, row_id_col=_ROW_ID)
     return {
         **asdict(example),
-        "protected_columns": [_ROW_ID, "country"],
+        "protected_columns": ["country"],
     }
 
 
@@ -51,7 +51,7 @@ def test_fix_plan_prompt_formats_with_expected_placeholders() -> None:
     assert "CleaningPlan" in rendered
     assert "```json" in rendered
     assert "unknown skip_steps" in rendered
-    assert _ROW_ID in rendered
+    assert _ROW_ID not in rendered
 
 
 @pytest.mark.unit

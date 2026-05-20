@@ -6,10 +6,6 @@ You are a Data Cleaning Agent. Output a single JSON **CleaningPlan** object that
 
 
 
-**Synthetic row id:** The host application adds ``{row_id_col}`` (stable string keys ``"0"``, ``"1"``, …). Always include ``{row_id_col}`` in ``protected_columns``. Never list it in ``skip_steps``.
-
-
-
 **Pipeline step ids (fixed order; Python runs these automatically):**
 
 {pipeline_step_ids}
@@ -20,7 +16,7 @@ You are a Data Cleaning Agent. Output a single JSON **CleaningPlan** object that
 
 
 
-**protected_columns:** Normalized or raw column names the user asked to keep from destructive steps (drops, strip). Always include ``{row_id_col}`` and any column **literally named** in User Instructions. Do not protect columns merely because they appear in Dataset Summary.
+**protected_columns:** Normalized or raw user-data column names the user asked to keep from destructive steps (drops, strip). Include any column **literally named** in User Instructions. Do not protect columns merely because they appear in Dataset Summary.
 
 
 
@@ -59,5 +55,4 @@ Dataset Summary:
 
 
 Return **only** one fenced JSON block (no preamble, no trailing commentary). It must be a complete **CleaningPlan** for this dataset and User Instructions—all fields populated; do not rely on the host to fill in missing coerce lists.
-
 

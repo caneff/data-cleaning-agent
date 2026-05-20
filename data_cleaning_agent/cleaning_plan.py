@@ -16,9 +16,9 @@ DEFAULT_DROP_HIGH_MISSING_THRESHOLD = 0.4
 class CleaningPlan:
     """Validated cleaning plan for the hybrid pipeline.
 
-    ``protected_columns`` is the single keep-list for destructive steps (drops,
-    strip, impute skips). Step-specific fields only cover parameters that vary
-    per run (threshold, dtype coercion targets, impute column lists).
+    ``protected_columns`` is the user-data keep-list for destructive steps
+    (drops, strip, impute skips). Step-specific fields only cover parameters
+    that vary per run (threshold, dtype coercion targets, impute column lists).
     """
 
     skip_steps: list[str] = dataclasses.field(default_factory=list)
@@ -37,12 +37,8 @@ class CleaningPlan:
             raise ValueError(msg)
 
 
-def _user_protected_columns(
-    plan: CleaningPlan,
-    *,
-    row_id_col: str = DEFAULT_ROW_ID_COL,
-) -> list[str]:
-    return [col for col in plan.protected_columns if col != row_id_col]
+def _user_protected_columns(plan: CleaningPlan) -> list[str]:
+    return list(plan.protected_columns)
 
 
 def _format_column_list(columns: tuple[str, ...]) -> str:
@@ -66,7 +62,7 @@ def format_plan_summary_markdown(
         else:
             step_lines.append(f"- {step_id}")
 
-    protected = _user_protected_columns(plan, row_id_col=row_id_col)
+    protected = _user_protected_columns(plan)
 
     lines: list[str] = [
         "#### Pipeline steps",
@@ -77,8 +73,6 @@ def format_plan_summary_markdown(
             "",
             "#### Protected columns",
             ", ".join(f"`{name}`" for name in protected),
-            "",
-            "_The app-injected synthetic row id is always protected when you apply._",
         ])
     lines.extend([
         "",
@@ -103,9 +97,9 @@ def plan_display_json(
     *,
     row_id_col: str = DEFAULT_ROW_ID_COL,
 ) -> str:
-    """JSON snapshot for tests or debugging; omits row id from ``protected_columns``."""
+    """JSON snapshot for tests or debugging."""
     payload = dataclasses.asdict(plan)
-    payload["protected_columns"] = _user_protected_columns(plan, row_id_col=row_id_col)
+    payload["protected_columns"] = _user_protected_columns(plan)
     return json.dumps(payload, indent=2)
 
 
@@ -123,7 +117,6 @@ def default_plan_from_summary(
     bool_cols = [n for n, c in summary.columns.items() if c.looks_boolean_like]
 
     return CleaningPlan(
-        protected_columns=[row_id_col],
         coerce_datetime_columns=tuple(dt_cols),
         coerce_numeric_columns=tuple(num_cols),
         coerce_bool_columns=tuple(bool_cols),

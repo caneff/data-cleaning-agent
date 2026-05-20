@@ -58,7 +58,7 @@ def test_pipeline_preserves_row_id_column() -> None:
         ROW_ID: ["r1", "r2"],
         "value": [1.0, 2.0],
     })
-    plan = CleaningPlan(protected_columns=[ROW_ID])
+    plan = CleaningPlan()
     out, _trace = run_cleaning_pipeline(df, plan, row_id_col=ROW_ID)
     assert ROW_ID in out.columns
     assert list(out[ROW_ID]) == ["r1", "r2"]
@@ -74,7 +74,7 @@ def test_pipeline_impute_skips_column_dropped_by_missing_threshold() -> None:
     plan = CleaningPlan(
         drop_high_missing_threshold=0.5,
         impute_numeric_columns=("mostly_missing", "keep"),
-        protected_columns=[ROW_ID, "keep"],
+        protected_columns=["keep"],
     )
     out, _trace = run_cleaning_pipeline(df, plan, row_id_col=ROW_ID)
     assert "mostly_missing" not in out.columns

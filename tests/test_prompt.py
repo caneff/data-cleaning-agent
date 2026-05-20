@@ -29,7 +29,6 @@ def test_plan_prompt_md_is_langchain_template_with_expected_variables() -> None:
     assert "{all_datasets_summary}" in text
     assert "{pipeline_step_ids}" in text
     assert "{example_plan_json}" in text
-    assert "{row_id_col}" in text
     assert "Do **not** write Python code" in text
 
 
@@ -47,7 +46,7 @@ def test_plan_prompt_renders_with_only_expected_placeholders() -> None:
     assert "```json" in rendered
     assert "<u>" in rendered
     assert "<s>" in rendered
-    assert "__agent_row_id__" in rendered
+    assert "__agent_row_id__" not in rendered
     assert "copy, normalize_names" in rendered
 
 
@@ -65,4 +64,4 @@ def test_fix_plan_prompt_formats_with_expected_placeholders() -> None:
     assert "CleaningPlan" in rendered
     assert "```json" in rendered
     assert "unknown skip_steps" in rendered
-    assert "__agent_row_id__" in rendered
+    assert "__agent_row_id__" not in rendered

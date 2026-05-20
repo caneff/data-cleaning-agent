@@ -17,16 +17,16 @@ def test_default_plan_seeds_coerce_columns_from_summary(mixed_df, summary) -> No
 
 
 @pytest.mark.unit
-def test_default_plan_protects_row_id_only(mixed_df, summary) -> None:
+def test_default_plan_has_no_protected_columns_by_default(mixed_df, summary) -> None:
     plan = default_plan_from_summary(summary, row_id_col="__agent_row_id__")
-    assert plan.protected_columns == ["__agent_row_id__"]
+    assert plan.protected_columns == []
 
 
 @pytest.mark.unit
-def test_format_plan_summary_markdown_is_readable_and_omits_row_id() -> None:
+def test_format_plan_summary_markdown_is_readable() -> None:
     plan = CleaningPlan(
         skip_steps=["impute"],
-        protected_columns=["__agent_row_id__", "country"],
+        protected_columns=["country"],
         drop_high_missing_threshold=0.3,
         coerce_datetime_columns=("signup_date",),
         coerce_numeric_columns=("income_str",),
@@ -40,10 +40,11 @@ def test_format_plan_summary_markdown_is_readable_and_omits_row_id() -> None:
     assert "`signup_date`" in text
     assert "#### Pipeline steps" in text
     assert "#### Impute" in text
+    assert "synthetic row id" not in text
 
 
 @pytest.mark.unit
-def test_format_plan_summary_omits_protected_section_when_only_row_id(
+def test_format_plan_summary_omits_protected_section_without_protected_columns(
     mixed_df,
     summary,
 ) -> None:
@@ -53,9 +54,9 @@ def test_format_plan_summary_omits_protected_section_when_only_row_id(
 
 
 @pytest.mark.unit
-def test_plan_display_json_omits_row_id_from_protected_columns() -> None:
+def test_plan_display_json_includes_user_protected_columns() -> None:
     plan = CleaningPlan(
-        protected_columns=["__agent_row_id__", "country"],
+        protected_columns=["country"],
         coerce_numeric_columns=("income_str",),
     )
     text = plan_display_json(plan)

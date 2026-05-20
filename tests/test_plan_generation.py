@@ -30,7 +30,7 @@ def _json_blocks_in_prompt(prompt: str) -> list[dict]:
 @pytest.mark.unit
 def test_render_plan_prompt_embeds_example_and_runtime_inputs() -> None:
     example = cleaning_plan.CleaningPlan(
-        protected_columns=[_ROW_ID_COL],
+        protected_columns=["country"],
         coerce_datetime_columns=("signup_date",),
         coerce_numeric_columns=("income_str",),
         coerce_bool_columns=("is_active",),
@@ -58,6 +58,21 @@ def test_render_plan_prompt_embeds_example_and_runtime_inputs() -> None:
 
 
 @pytest.mark.unit
+def test_render_plan_prompt_keeps_source_row_identity_internal() -> None:
+    example = cleaning_plan.CleaningPlan(protected_columns=["country"])
+    rendered = plan_generation.render_plan_prompt(
+        user_instructions="protect country",
+        dataset_summary="Rows: 5",
+        example_plan=example,
+        row_id_col=_ROW_ID_COL,
+    )
+
+    assert _ROW_ID_COL not in rendered
+    assert "Synthetic row id" not in rendered
+    assert "Always include" not in rendered
+
+
+@pytest.mark.unit
 def test_parse_cleaning_plan_json_valid() -> None:
     raw = '{"skip_steps": [], "protected_columns": ["country"]}'
     plan = plan_generation.parse_cleaning_plan_json(raw)
@@ -79,20 +94,24 @@ def test_parse_cleaning_plan_json_rejects_unknown_skip() -> None:
 
 
 @pytest.mark.unit
-def test_validate_cleaning_plan_requires_row_id(summary) -> None:
-    plan = cleaning_plan.CleaningPlan(protected_columns=["country"])
-    with pytest.raises(ValueError, match="protected_columns must include row id"):
-        plan_generation.validate_cleaning_plan(
-            plan,
-            summary,
-            row_id_col=_ROW_ID_COL,
-        )
+def test_validate_cleaning_plan_accepts_user_protected_columns_only(summary) -> None:
+    plan = cleaning_plan.CleaningPlan(
+        protected_columns=["country"],
+        coerce_datetime_columns=("signup_date",),
+        coerce_numeric_columns=("income_str",),
+        coerce_bool_columns=("is_active",),
+    )
+    plan_generation.validate_cleaning_plan(
+        plan,
+        summary,
+        row_id_col=_ROW_ID_COL,
+    )
 
 
 @pytest.mark.unit
 def test_validate_cleaning_plan_warns_on_missing_coerce(summary, caplog) -> None:
     plan = cleaning_plan.CleaningPlan(
-        protected_columns=[_ROW_ID_COL],
+        protected_columns=["country"],
         coerce_datetime_columns=(),
         coerce_numeric_columns=(),
         coerce_bool_columns=(),
@@ -112,7 +131,7 @@ def test_generate_cleaning_plan_uses_mock_llm(mixed_df, summary) -> None:
     example = cleaning_plan.default_plan_from_summary(summary, row_id_col=_ROW_ID_COL)
     payload = {
         "skip_steps": list(example.skip_steps),
-        "protected_columns": [_ROW_ID_COL, "country"],
+        "protected_columns": ["country"],
         "drop_high_missing_threshold": example.drop_high_missing_threshold,
         "coerce_datetime_columns": list(example.coerce_datetime_columns),
         "coerce_numeric_columns": list(example.coerce_numeric_columns),
@@ -131,5 +150,5 @@ def test_generate_cleaning_plan_uses_mock_llm(mixed_df, summary) -> None:
         user_instructions="protect country",
     )
     assert "country" in plan.protected_columns
-    assert _ROW_ID_COL in plan.protected_columns
+    assert _ROW_ID_COL not in plan.protected_columns
     assert "signup_date" in set(plan.coerce_datetime_columns)
