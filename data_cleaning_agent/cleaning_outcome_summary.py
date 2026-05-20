@@ -11,7 +11,7 @@ from pandas.api.types import is_dtype_equal
 import data_cleaning_agent.utils as utils
 
 DEFAULT_NULL_TOP_K = 10
-_ROW_ID_LABEL = "synthetic alignment column (app-injected)"
+_ROW_ID_LABEL = "Source Row Identity"
 
 
 def _column_heading(name: str) -> str:
@@ -34,6 +34,46 @@ def _same_values(left: pd.Series, right: pd.Series) -> bool:
         return False
 
 
+def _value_changes_by_row_id(
+    df_before: pd.DataFrame,
+    df_after: pd.DataFrame,
+    *,
+    row_id_col: str,
+) -> list[dict[str, Any]]:
+    """Count changed values on shared Source Row Identity values."""
+    if row_id_col not in df_before.columns or row_id_col not in df_after.columns:
+        return []
+
+    before_ids = utils.first_column_as_series(df_before, row_id_col)
+    after_ids = utils.first_column_as_series(df_after, row_id_col)
+    after_id_set = set(after_ids.tolist())
+    shared_ids = [value for value in before_ids.tolist() if value in after_id_set]
+    if not shared_ids:
+        return []
+
+    common = sorted((set(df_before.columns) & set(df_after.columns)) - {row_id_col})
+    changes: list[dict[str, Any]] = []
+    for name in common:
+        before = pd.DataFrame({
+            row_id_col: before_ids,
+            name: utils.first_column_as_series(df_before, name),
+        })
+        after = pd.DataFrame({
+            row_id_col: after_ids,
+            name: utils.first_column_as_series(df_after, name),
+        })
+        before = before.drop_duplicates(row_id_col).set_index(row_id_col)
+        after = after.drop_duplicates(row_id_col).set_index(row_id_col)
+        left = before.loc[shared_ids, name].reset_index(drop=True)
+        right = after.loc[shared_ids, name].reset_index(drop=True)
+        same = left.eq(right) | (left.isna() & right.isna())
+        changed = int((~same.fillna(False)).sum())
+        if changed:
+            changes.append({"column": name, "changed_values": changed})
+    changes.sort(key=lambda row: row["changed_values"], reverse=True)
+    return changes
+
+
 def build_cleaning_outcome_facts(
     df_before: pd.DataFrame,
     df_after: pd.DataFrame,
@@ -48,7 +88,7 @@ def build_cleaning_outcome_facts(
     df_before, df_after
         Input and output of the same cleaner run.
     row_id_col
-        Synthetic alignment column (e.g. ``preview_helpers.AGENT_ROW_ID``).
+        Source Row Identity label selected by the Cleaning Run policy.
     null_top_k
         Max number of shared columns to list in ``null_deltas`` by absolute
         change in raw ``isna()`` count.
@@ -56,8 +96,8 @@ def build_cleaning_outcome_facts(
     if null_top_k < 1:
         raise ValueError("null_top_k must be at least 1")
 
-    before_cols = set(df_before.columns)
-    after_cols = set(df_after.columns)
+    before_cols = set(df_before.columns) - {row_id_col}
+    after_cols = set(df_after.columns) - {row_id_col}
     dropped = sorted(before_cols - after_cols)
     added = sorted(after_cols - before_cols)
 
@@ -107,6 +147,11 @@ def build_cleaning_outcome_facts(
             "dtype_changed": dtype_changed,
         },
         "null_deltas": null_deltas,
+        "value_changes": _value_changes_by_row_id(
+            df_before,
+            df_after,
+            row_id_col=row_id_col,
+        ),
     }
 
 
@@ -120,7 +165,9 @@ def outcome_facts_show_any_change(facts: dict[str, Any]) -> bool:
     cols = facts["columns"]
     if cols["dropped"] or cols["added"] or cols["dtype_changed"]:
         return True
-    return bool(facts["null_deltas"])
+    if facts["null_deltas"]:
+        return True
+    return bool(facts.get("value_changes"))
 
 
 def format_outcome_summary_markdown(facts: dict[str, Any]) -> str:
@@ -159,6 +206,15 @@ def format_outcome_summary_markdown(facts: dict[str, Any]) -> str:
             lines.append(
                 f"- `{_column_heading(entry['name'])}`: "
                 f"`{entry['before_dtype']}` → `{entry['after_dtype']}`"
+            )
+
+    if facts.get("value_changes"):
+        lines.append("")
+        lines.append("**Changed Values**")
+        for row in facts["value_changes"]:
+            lines.append(
+                f"- `{_column_heading(row['column'])}`: "
+                f"{row['changed_values']:,} changed"
             )
 
     if facts["null_deltas"]:

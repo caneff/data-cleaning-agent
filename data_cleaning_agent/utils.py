@@ -10,7 +10,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-# Synthetic stable row id injected by the Streamlit app (see ``preview_helpers.AGENT_ROW_ID``).
+# Default Source Row Identity label; the policy may choose a collision-free variant.
 APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN = "__agent_row_id__"
 
 

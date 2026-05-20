@@ -12,6 +12,7 @@ import pandas as pd
 import data_cleaning_agent.cleaning_pipeline as cleaning_pipeline
 import data_cleaning_agent.cleaning_plan as cleaning_plan
 import data_cleaning_agent.plan_generation as plan_generation
+import data_cleaning_agent.source_row_identity as source_row_identity
 
 # Setup
 
@@ -37,6 +38,8 @@ class GraphState(TypedDict, total=False):
     retry_count: Required[int]
 
     data_cleaned: dict
+
+    cleaning_run: source_row_identity.CleaningRun
 
     cleaning_plan: dict
 
@@ -102,6 +105,8 @@ class LightweightDataCleaningAgent:
 
         self.response = None
 
+        self._cleaning_run: source_row_identity.CleaningRun | None = None
+
         self._compiled_graph = make_lightweight_data_cleaning_agent(
             model=model,
             checkpointer=checkpointer,
@@ -127,9 +132,7 @@ class LightweightDataCleaningAgent:
 
         source_df : pd.DataFrame
 
-            Raw dataset to clean (should include ``DEFAULT_ROW_ID_COL`` when used
-
-            from the Streamlit app).
+            Raw user dataset to clean. Source Row Identity is attached internally.
 
         user_instructions : str, optional
 
@@ -173,6 +176,7 @@ class LightweightDataCleaningAgent:
         }
 
         self.response = self._compiled_graph.invoke(initial_state, config=config)
+        self._cleaning_run = self.response.get("cleaning_run")
 
     def get_data_cleaned(self):
         """
@@ -193,6 +197,11 @@ class LightweightDataCleaningAgent:
 
         if self.response:
             return pd.DataFrame(self.response.get("source_df"))
+
+    def get_cleaning_run(self) -> source_row_identity.CleaningRun | None:
+        """Return the internal Cleaning Run for preview/outcome adapters."""
+
+        return self._cleaning_run
 
     def get_cleaning_plan(self) -> cleaning_plan.CleaningPlan | None:
         """Return the parsed cleaning plan from the last run, if any."""
@@ -227,13 +236,18 @@ class LightweightDataCleaningAgent:
             user_instructions,
             row_id_col=cleaning_plan.DEFAULT_ROW_ID_COL,
         )
+        self._cleaning_run = source_row_identity.start_cleaning_run(
+            source_df,
+            protected_columns=tuple(plan.protected_columns),
+        )
 
         self.response = {
             "cleaning_plan": asdict(plan),
             "retry_count": 0,
+            "source_df": self._cleaning_run.source_user_data().to_dict(),
         }
 
-    def execute_stored_cleaning(self, source_df: pd.DataFrame) -> dict:
+    def execute_stored_cleaning(self) -> dict:
         """
 
         Run the hybrid pipeline from the last :meth:`generate_cleaning_plan` step.
@@ -270,15 +284,29 @@ class LightweightDataCleaningAgent:
 
         plan = cleaning_plan.CleaningPlan(**plan_dict)
 
-        try:
-            cleaned, _trace = cleaning_pipeline.run_cleaning_pipeline(
-                source_df,
-                plan,
-                row_id_col=cleaning_plan.DEFAULT_ROW_ID_COL,
+        if self._cleaning_run is None:
+            msg = (
+                "Call generate_cleaning_plan or invoke_agent "
+                "before execute_stored_cleaning."
             )
 
+            raise ValueError(msg)
+
+        try:
+            cleaned, _trace = cleaning_pipeline.run_cleaning_pipeline(
+                self._cleaning_run.source_frame,
+                plan,
+                row_id_col=str(self._cleaning_run.policy.identity_label),
+            )
+            self._cleaning_run = self._cleaning_run.with_cleaned_frame(cleaned)
+            cleaned_user_data = self._cleaning_run.cleaned_user_data()
+
             exec_out = {
-                "data_cleaned": cleaned.to_dict(),
+                "data_cleaned": (
+                    cleaned_user_data.to_dict()
+                    if cleaned_user_data is not None
+                    else pd.DataFrame().to_dict()
+                ),
                 "data_cleaner_error": None,
             }
 
@@ -288,7 +316,7 @@ class LightweightDataCleaningAgent:
         self.response = {
             **self.response,
             **exec_out,
-            "source_df": source_df.to_dict(),
+            "source_df": self._cleaning_run.source_user_data().to_dict(),
         }
 
         return exec_out
@@ -378,21 +406,33 @@ def make_lightweight_data_cleaning_agent(
         df = pd.DataFrame.from_dict(state["source_df"])
 
         plan = cleaning_plan.CleaningPlan(**plan_dict)
+        cleaning_run = source_row_identity.start_cleaning_run(
+            df,
+            protected_columns=tuple(plan.protected_columns),
+        )
 
         try:
             cleaned, _trace = cleaning_pipeline.run_cleaning_pipeline(
-                df,
+                cleaning_run.source_frame,
                 plan,
-                row_id_col=cleaning_plan.DEFAULT_ROW_ID_COL,
+                row_id_col=str(cleaning_run.policy.identity_label),
             )
+            cleaning_run = cleaning_run.with_cleaned_frame(cleaned)
 
         except Exception as exc:
             logger.exception("Failed to execute cleaning plan")
 
             return {"data_cleaner_error": str(exc)}
 
+        cleaned_user_data = cleaning_run.cleaned_user_data()
         return {
-            "data_cleaned": cleaned.to_dict(),
+            "data_cleaned": (
+                cleaned_user_data.to_dict()
+                if cleaned_user_data is not None
+                else pd.DataFrame().to_dict()
+            ),
+            "source_df": cleaning_run.source_user_data().to_dict(),
+            "cleaning_run": cleaning_run,
             "data_cleaner_error": None,
         }
 

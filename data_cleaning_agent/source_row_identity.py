@@ -46,6 +46,29 @@ class PreparedSourceFrame:
     policy: SourceRowIdentityPolicy
 
 
+@dataclasses.dataclass(frozen=True)
+class CleaningRun:
+    """One cleaning execution carrying Source Row Identity through the flow."""
+
+    source_frame: pd.DataFrame
+    policy: SourceRowIdentityPolicy
+    cleaned_frame: pd.DataFrame | None = None
+
+    def with_cleaned_frame(self, cleaned: pd.DataFrame) -> CleaningRun:
+        """Return this run with cleaned data attached."""
+        return dataclasses.replace(self, cleaned_frame=cleaned)
+
+    def source_user_data(self) -> pd.DataFrame:
+        """Return source data without internal Source Row Identity."""
+        return export_cleaned_frame(self.source_frame, self.policy)
+
+    def cleaned_user_data(self) -> pd.DataFrame | None:
+        """Return cleaned data without internal Source Row Identity."""
+        if self.cleaned_frame is None:
+            return None
+        return export_cleaned_frame(self.cleaned_frame, self.policy)
+
+
 def _available_identity_label(columns: pd.Index) -> str:
     label = DEFAULT_SOURCE_ROW_IDENTITY_LABEL
     if label not in columns:
@@ -78,6 +101,16 @@ def prepare_source_frame(
         protected_source_columns=protected_columns,
     )
     return PreparedSourceFrame(frame=out, policy=policy)
+
+
+def start_cleaning_run(
+    source: pd.DataFrame,
+    *,
+    protected_columns: tuple[Hashable, ...] = (),
+) -> CleaningRun:
+    """Start a Cleaning Run by attaching Source Row Identity to source data."""
+    prepared = prepare_source_frame(source, protected_columns=protected_columns)
+    return CleaningRun(source_frame=prepared.frame, policy=prepared.policy)
 
 
 def export_cleaned_frame(

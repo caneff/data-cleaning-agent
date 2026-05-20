@@ -71,7 +71,7 @@ def test_format_redacts_internal_row_id_column_name_in_lists():
     }
     text = format_outcome_summary_markdown(facts)
     assert rid not in text
-    assert "synthetic alignment column (app-injected)" in text
+    assert "Source Row Identity" in text
 
 
 @pytest.mark.unit
@@ -85,6 +85,26 @@ def test_rows_section_includes_id_counts_when_row_id_present():
     text = format_outcome_summary_markdown(facts)
     assert "Row ids removed" in text
     assert "Row ids added" in text
+
+
+@pytest.mark.unit
+def test_value_changes_are_counted_by_source_row_identity():
+    rid = APP_SYNTHETIC_ALIGN_ROW_ID_COLUMN
+    df_before = pd.DataFrame({
+        rid: ["0", "1"],
+        "name": ["Ada", "Grace"],
+        "score": [10, 20],
+    })
+    df_after = pd.DataFrame({
+        rid: ["1", "0"],
+        "name": ["Grace", "Ada"],
+        "score": [21, 10],
+    })
+
+    facts = build_cleaning_outcome_facts(df_before, df_after, row_id_col=rid)
+
+    assert facts["value_changes"] == [{"column": "score", "changed_values": 1}]
+    assert "Changed Values" in format_outcome_summary_markdown(facts)
 
 
 @pytest.mark.unit
