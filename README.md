@@ -123,7 +123,7 @@ agent.invoke_agent(
 ```python
 agent.generate_cleaning_plan(source_df=df, user_instructions="Protect country")
 plan = agent.get_cleaning_plan()
-result = agent.execute_stored_cleaning(source_df=df)
+result = agent.execute_stored_cleaning()
 ```
 
 ## Project Structure

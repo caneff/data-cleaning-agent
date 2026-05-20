@@ -20,6 +20,11 @@ normalization, but it is not dropped, stripped destructively, coerced, imputed,
 or used as a dedupe comparison target.
 _Avoid_: Keep-list column, excluded column
 
+**Cleaning Run**:
+One execution over source data that carries Source Row Identity from source
+preparation through cleaned data, preview, outcome facts, and export.
+_Avoid_: Session, context
+
 ## Example Dialogue
 
 Developer: "Why do we need Source Row Identity if the cleaned data has fewer rows?"
@@ -31,3 +36,8 @@ Developer: "Can cleaning coerce a Protected Column if it looks numeric?"
 
 Domain expert: "No. Protected Column means preserve it as source data unless the
 user explicitly asks to change it."
+
+Developer: "Where does Source Row Identity live while cleaning is in progress?"
+
+Domain expert: "In the Cleaning Run. It follows the source data through cleaning
+and is removed only when export data is produced."

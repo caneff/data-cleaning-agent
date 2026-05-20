@@ -47,8 +47,8 @@ def test_diff_cell_mask_no_na_in_result_for_nullable_string():
     after = pd.DataFrame({"a": pd.array(["y", None], dtype="string")})
     mask = diff_cell_mask(before, after)
     assert mask is not None
-    assert mask.dtypes.eq(bool).all()
-    assert not mask.isna().any().any()
+    assert mask.dtypes.astype(str).eq("bool").all()
+    assert not bool(mask.isna().to_numpy().any())
 
 
 @pytest.mark.unit

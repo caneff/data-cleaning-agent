@@ -76,8 +76,40 @@ def test_invoke_agent_runs_pipeline_with_mock_llm(
     cleaned = agent.get_data_cleaned()
     assert cleaned is not None
     assert len(cleaned) == len(df)
+    assert agent.response is not None
     assert agent.response.get("data_cleaner_error") is None
     assert agent.response.get("cleaning_plan") is not None
+
+
+@pytest.mark.unit
+def test_invoke_agent_keeps_identity_internal_for_cleaning_run(
+    mixed_df, summary, monkeypatch
+) -> None:
+    payload = _valid_plan_payload(summary)
+    fake_model = RunnableLambda(
+        lambda _prompt: AIMessage(content=json.dumps(payload)),
+    )
+    monkeypatch.setattr(
+        "data_cleaning_agent.data_cleaning_agent.plan_generation.generate_cleaning_plan",
+        lambda model, source_df, user_instructions=None, **kwargs: CleaningPlan(
+            **payload
+        ),
+    )
+
+    agent = LightweightDataCleaningAgent(model=fake_model)
+    agent.invoke_agent(mixed_df, user_instructions="protect country", max_retries=0)
+
+    run = agent.get_cleaning_run()
+    assert run is not None
+    assert run.policy.identity_label in run.source_frame.columns
+    assert run.cleaned_frame is not None
+    assert run.policy.identity_label in run.cleaned_frame.columns
+    input_df = agent.get_input_dataframe()
+    cleaned = agent.get_data_cleaned()
+    assert input_df is not None
+    assert cleaned is not None
+    assert run.policy.identity_label not in input_df.columns
+    assert run.policy.identity_label not in cleaned.columns
 
 
 @pytest.mark.unit
@@ -96,16 +128,46 @@ def test_generate_and_execute_stored_cleaning_plan(
     )
 
     agent = LightweightDataCleaningAgent(model=fake_model)
-    df = _df_with_row_id(mixed_df)
-    agent.generate_cleaning_plan(df, user_instructions="protect country")
+    agent.generate_cleaning_plan(mixed_df, user_instructions="protect country")
 
     plan = agent.get_cleaning_plan()
     assert plan is not None
     assert "country" in plan.protected_columns
 
-    out = agent.execute_stored_cleaning(df)
+    out = agent.execute_stored_cleaning()
     assert out.get("data_cleaner_error") is None
     assert agent.get_data_cleaned() is not None
+
+
+@pytest.mark.unit
+def test_stored_cleaning_uses_captured_cleaning_run_without_public_identity(
+    mixed_df, summary, monkeypatch
+) -> None:
+    payload = _valid_plan_payload(summary)
+    fake_model = RunnableLambda(
+        lambda _prompt: AIMessage(content=json.dumps(payload)),
+    )
+    monkeypatch.setattr(
+        "data_cleaning_agent.data_cleaning_agent.plan_generation.generate_cleaning_plan",
+        lambda model, source_df, user_instructions=None, **kwargs: CleaningPlan(
+            **payload
+        ),
+    )
+
+    agent = LightweightDataCleaningAgent(model=fake_model)
+    agent.generate_cleaning_plan(mixed_df, user_instructions="protect country")
+
+    out = agent.execute_stored_cleaning()
+    cleaned = pd.DataFrame(out["data_cleaned"])
+    input_df = agent.get_input_dataframe()
+    agent_cleaned = agent.get_data_cleaned()
+
+    assert out.get("data_cleaner_error") is None
+    assert input_df is not None
+    assert agent_cleaned is not None
+    assert _ROW_ID not in cleaned.columns
+    assert _ROW_ID not in input_df.columns
+    assert _ROW_ID not in agent_cleaned.columns
 
 
 @pytest.mark.unit

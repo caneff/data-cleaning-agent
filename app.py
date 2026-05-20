@@ -13,25 +13,10 @@ from data_cleaning_agent.cleaning_outcome_summary import (
 )
 from data_cleaning_agent.cleaning_plan import format_plan_summary_markdown
 from preview_helpers import (
-    AGENT_ROW_ID,
     preview_aligned_frames,
     reorder_cleaned_for_export,
     style_preview_pair,
 )
-
-
-def _synthetic_row_id_series(index: pd.Index) -> pd.Series:
-    """Stable row keys as pandas string dtype (safe for naive ``.str`` loops in generated code)."""
-    return pd.Series([str(i) for i in range(len(index))], index=index, dtype="string")
-
-
-def _normalize_cleaned_row_id(df: pd.DataFrame) -> pd.DataFrame:
-    """Coerce ``AGENT_ROW_ID`` to str so joins match the upload frame after numeric cleaners."""
-    if AGENT_ROW_ID not in df.columns:
-        return df
-    out = df.copy()
-    out[AGENT_ROW_ID] = out[AGENT_ROW_ID].astype(str)
-    return out
 
 
 load_dotenv()
@@ -49,8 +34,8 @@ if uploaded_file:
     upload_fp = (uploaded_file.name, uploaded_file.size)
     if st.session_state.get("_cleaning_upload_fp") != upload_fp:
         for k in (
-            "preview_df_input",
-            "preview_df_cleaned",
+            "cleaning_agent",
+            "cleaning_run",
             "pending_cleaning_plan",
             "cleaning_user_instructions",
         ):
@@ -81,23 +66,24 @@ if uploaded_file:
         with st.spinner("Generating cleaning plan..."):
             llm = ChatOpenAI(**{"model": "gpt-4o-mini", "temperature": 0})
             agent = LightweightDataCleaningAgent(model=llm)
-            df_input = df_uploaded.copy()
-            df_input.insert(0, AGENT_ROW_ID, _synthetic_row_id_series(df_input.index))
             raw_ui = st.session_state.get("cleaning_user_instructions")
             user_instructions = (
                 raw_ui.strip() if isinstance(raw_ui, str) and raw_ui.strip() else None
             )
             agent.generate_cleaning_plan(
-                source_df=df_input,
+                source_df=df_uploaded,
                 user_instructions=user_instructions,
             )
             plan = agent.get_cleaning_plan()
+            cleaning_run = agent.get_cleaning_run()
             if plan is None:
                 st.error("Failed to generate a cleaning plan.")
+            elif cleaning_run is None:
+                st.error("Failed to start a cleaning run.")
             else:
                 st.session_state["pending_cleaning_plan"] = plan
-                st.session_state["preview_df_input"] = df_input
-                st.session_state.pop("preview_df_cleaned", None)
+                st.session_state["cleaning_agent"] = agent
+                st.session_state["cleaning_run"] = cleaning_run
         if st.session_state.get("pending_cleaning_plan") is not None:
             st.success(
                 "Cleaning plan generated. Expand the plan section below to "
@@ -105,42 +91,43 @@ if uploaded_file:
             )
 
     pending_plan = st.session_state.get("pending_cleaning_plan")
-    df_input_stored = st.session_state.get("preview_df_input")
+    cleaning_run = st.session_state.get("cleaning_run")
 
-    if pending_plan and df_input_stored is not None:
+    if pending_plan and cleaning_run is not None:
+        row_id_col = str(cleaning_run.policy.identity_label)
         with st.expander("Generated cleaning plan", expanded=False):
             st.markdown(
                 format_plan_summary_markdown(
                     pending_plan,
-                    row_id_col=AGENT_ROW_ID,
+                    row_id_col=row_id_col,
                 )
             )
 
         if st.button("Apply Cleaning"):
             apply_err: str | None = None
             with st.spinner("Applying cleaning..."):
-                from data_cleaning_agent.cleaning_pipeline import run_cleaning_pipeline
-
+                agent = st.session_state.get("cleaning_agent")
                 try:
-                    df_pre, _trace = run_cleaning_pipeline(
-                        df_input_stored,
-                        pending_plan,
-                        row_id_col=AGENT_ROW_ID,
-                    )
+                    if agent is None:
+                        raise ValueError("Missing cleaning agent for this run.")
+                    result = agent.execute_stored_cleaning()
                 except Exception as exc:
                     apply_err = str(exc)
                 else:
-                    st.session_state["preview_df_cleaned"] = _normalize_cleaned_row_id(
-                        df_pre
-                    )
+                    apply_err = result.get("data_cleaner_error")
+                    st.session_state["cleaning_run"] = agent.get_cleaning_run()
             if apply_err is not None:
                 st.error(f"Cleaning failed: {apply_err}")
             else:
                 st.success("Cleaning complete.")
 
-    df_cleaned_stored = st.session_state.get("preview_df_cleaned")
+    cleaning_run = st.session_state.get("cleaning_run")
+    df_cleaned_stored = (
+        cleaning_run.cleaned_frame if cleaning_run is not None else None
+    )
 
-    if "preview_df_input" in st.session_state:
+    if cleaning_run is not None:
+        row_id_col = str(cleaning_run.policy.identity_label)
         st.subheader("Cleaned Data")
         if df_cleaned_stored is None:
             st.info("Generate a cleaning plan and apply to see results here.")
@@ -152,9 +139,12 @@ if uploaded_file:
                 disabled=True,
             )
         else:
+            cleaned_user_data = cleaning_run.cleaned_user_data()
+            if cleaned_user_data is None:
+                cleaned_user_data = pd.DataFrame()
             st.write(
-                f"Shape: {df_cleaned_stored.shape[0]} rows × "
-                f"{df_cleaned_stored.shape[1]} columns"
+                f"Shape: {cleaned_user_data.shape[0]} rows × "
+                f"{cleaned_user_data.shape[1]} columns"
             )
             n_clean = len(df_cleaned_stored)
             if n_clean > 0:
@@ -186,9 +176,9 @@ if uploaded_file:
                 key=_preview_k_state,
             )
             to_export = reorder_cleaned_for_export(
-                st.session_state["preview_df_input"],
+                cleaning_run.source_frame,
                 df_cleaned_stored,
-                AGENT_ROW_ID,
+                row_id_col,
             )
             csv = to_export.to_csv(index=False)
             st.download_button(
@@ -198,9 +188,9 @@ if uploaded_file:
                 mime="text/csv",
             )
             preview = preview_aligned_frames(
-                st.session_state["preview_df_input"],
+                cleaning_run.source_frame,
                 df_cleaned_stored,
-                AGENT_ROW_ID,
+                row_id_col,
                 k=k_preview,
             )
             if (
@@ -218,15 +208,15 @@ if uploaded_file:
                 )
             if not preview.aligned:
                 st.warning(
-                    "Could not align rows on the **synthetic row id** this app adds "
+                    "Could not align rows on **Source Row Identity** "
                     "for matching; previews compare rows **by position**, show "
                     "up to **k** rows with the most column changes (ties: earlier "
                     "row first). Rows may not correspond to the same logical record."
                 )
             facts = build_cleaning_outcome_facts(
-                st.session_state["preview_df_input"],
+                cleaning_run.source_frame,
                 df_cleaned_stored,
-                row_id_col=AGENT_ROW_ID,
+                row_id_col=row_id_col,
             )
             if outcome_facts_show_any_change(facts):
                 with st.expander("What Actually Changed", expanded=False):
